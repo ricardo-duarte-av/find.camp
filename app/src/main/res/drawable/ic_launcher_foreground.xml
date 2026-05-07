@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Tent body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,22 L18,75 L90,75 Z" />
+    <!-- Door opening -->
+    <path
+        android:fillColor="#2E6B3E"
+        android:pathData="M46,75 L46,60 Q54,50 62,60 L62,75 Z" />
+    <!-- Ground line -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,78 L94,78 Q94,82 14,82 Z" />
+</vector>
