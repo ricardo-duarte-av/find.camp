@@ -45,7 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import camp.find.app.BuildConfig
 import camp.find.app.data.model.SpotSummary
-import coil3.compose.AsyncImage
+import camp.find.app.ui.components.WavyLoadingBox
+import coil3.compose.SubcomposeAsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 
@@ -106,7 +107,7 @@ fun SpotPreviewSheet(
                 .navigationBarsPadding(),
         ) {
             // ── Hero image ────────────────────────────────────────────────────
-            AsyncImage(
+            SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(spot.resolvedImageUrl())
                     .crossfade(true)
@@ -116,6 +117,9 @@ fun SpotPreviewSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp),
+                loading = {
+                    WavyLoadingBox(modifier = Modifier.fillMaxSize())
+                },
             )
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
