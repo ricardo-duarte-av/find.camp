@@ -1,6 +1,7 @@
 package camp.find.app.data.network
 
 import camp.find.app.BuildConfig
+import camp.find.app.data.model.ReviewsResponse
 import camp.find.app.data.model.SpotDetailResponse
 import camp.find.app.data.model.SpotsResponse
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,14 @@ class SpotsApi {
 
     suspend fun getSpotById(id: String): SpotDetailResponse =
         get("$base/api/v1/spots/$id")
+
+    suspend fun getSpotReviews(id: String, cursor: String? = null): ReviewsResponse {
+        val url = buildString {
+            append("$base/api/v1/spots/$id/reviews")
+            if (cursor != null) append("?cursor=${cursor}")
+        }
+        return get(url)
+    }
 
     private suspend inline fun <reified T> get(url: String): T = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url).build()

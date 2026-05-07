@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import camp.find.app.ui.landing.LandingScreen
 import camp.find.app.ui.map.MapScreen
 import camp.find.app.ui.profile.ProfileScreen
+import camp.find.app.ui.spot.SpotDetailScreen
 import camp.find.app.ui.trips.TripsScreen
 
 private object Routes {
@@ -14,6 +15,8 @@ private object Routes {
     const val MAP = "map"
     const val TRIPS = "trips"
     const val PROFILE = "profile"
+    const val SPOT_DETAIL = "spot/{spotId}"
+    fun spotDetail(id: String) = "spot/$id"
 }
 
 @Composable
@@ -32,13 +35,23 @@ fun AppNavigation() {
             )
         }
         composable(Routes.MAP) {
-            MapScreen(onBack = { navController.popBackStack() })
+            MapScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToDetail = { id -> navController.navigate(Routes.spotDetail(id)) },
+            )
         }
         composable(Routes.TRIPS) {
             TripsScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.PROFILE) {
             ProfileScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SPOT_DETAIL) { backStackEntry ->
+            val spotId = backStackEntry.arguments?.getString("spotId") ?: return@composable
+            SpotDetailScreen(
+                spotId = spotId,
+                onBack = { navController.popBackStack() },
+            )
         }
     }
 }
