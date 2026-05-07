@@ -26,3 +26,6 @@ data class SpotsResponse(
     val spots: List<SpotSummary>,
     val capped: Boolean,
 )
+
+@Serializable
+data class SpotDetailResponse(val spot: SpotSummary)

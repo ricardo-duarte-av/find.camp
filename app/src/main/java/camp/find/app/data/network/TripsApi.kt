@@ -1,24 +1,20 @@
 package camp.find.app.data.network
 
 import camp.find.app.BuildConfig
-import camp.find.app.data.model.SpotDetailResponse
-import camp.find.app.data.model.SpotsResponse
+import camp.find.app.data.model.ReviewsResponse
+import camp.find.app.data.model.TripsResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 
-class SpotsApi {
+class TripsApi {
     private val base = BuildConfig.BASE_URL
 
-    suspend fun getSpotsByBbox(
-        minLng: Double,
-        minLat: Double,
-        maxLng: Double,
-        maxLat: Double,
-    ): SpotsResponse = get("$base/api/v1/spots?bbox=$minLng,$minLat,$maxLng,$maxLat")
+    suspend fun getPublicTrips(): TripsResponse =
+        get("$base/api/v1/trips")
 
-    suspend fun getSpotById(id: String): SpotDetailResponse =
-        get("$base/api/v1/spots/$id")
+    suspend fun getReviews(spotId: String, cursor: String? = null): ReviewsResponse =
+        get("$base/api/v1/spots/$spotId/reviews" + if (cursor != null) "?cursor=$cursor" else "")
 
     private suspend inline fun <reified T> get(url: String): T = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(url).build()
