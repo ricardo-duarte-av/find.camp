@@ -3,9 +3,11 @@ package camp.find.app.ui.map
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.graphics.RectF
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,19 +50,21 @@ import org.maplibre.geojson.Point
 
 private const val SPOTS_SOURCE = "spots-source"
 private const val SPOTS_LAYER = "spots-layer"
-private val FALLBACK_POSITION = LatLng(52.3, 5.3) // Netherlands (where test data lives)
+private val FALLBACK_POSITION = LatLng(52.3, 5.3)
 private const val DEFAULT_ZOOM = 7.0
 private const val USER_ZOOM = 12.0
+private const val TAP_BUFFER_PX = 28f
 
 @SuppressLint("MissingPermission")
 @Composable
 fun MapScreen(
     onBack: () -> Unit,
+    onNavigateToDetail: (String) -> Unit = {},
     viewModel: MapViewModel = viewModel(),
 ) {
     val context = LocalContext.current
 
-    // ── Location permission ──────────────────────────────────────────────────
+    // ── Location permission ───────────────────────────────────────────────────
     var hasLocation by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -68,14 +72,12 @@ fun MapScreen(
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         hasLocation = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
-
     LaunchedEffect(Unit) {
         if (!hasLocation) {
             permissionLauncher.launch(
@@ -87,7 +89,7 @@ fun MapScreen(
         }
     }
 
-    // ── Map setup ────────────────────────────────────────────────────────────
+    // ── Map state ─────────────────────────────────────────────────────────────
     val isDark = isSystemInDarkTheme()
     val styleUrl = if (isDark) MapStyle.DARK else MapStyle.LIGHT
 
@@ -95,6 +97,7 @@ fun MapScreen(
 
     val fusedLocation = remember { LocationServices.getFusedLocationProviderClient(context) }
     val spots by viewModel.spots.collectAsState()
+    val selectedSpot by viewModel.selectedSpot.collectAsState()
     val mapRef = remember { mutableStateOf<MapLibreMap?>(null) }
     var mapReady by remember { mutableStateOf(false) }
     val mapView = remember { MapView(context) }
@@ -118,27 +121,22 @@ fun MapScreen(
         }
     }
 
-    // Activate blue-dot + fly to user when both map and permission are ready
+    // Activate blue dot + fly to user when both map and permission are ready
     LaunchedEffect(hasLocation, mapReady) {
         if (!hasLocation || !mapReady) return@LaunchedEffect
         val map = mapRef.value ?: return@LaunchedEffect
-
-        map.getStyle { style ->
-            activateLocationDot(context, map, style)
-        }
-
+        map.getStyle { style -> activateLocationDot(context, map, style) }
         fusedLocation.lastLocation.addOnSuccessListener { location ->
             location ?: return@addOnSuccessListener
             map.animateCamera(
                 CameraUpdateFactory.newLatLngZoom(
-                    LatLng(location.latitude, location.longitude),
-                    USER_ZOOM,
+                    LatLng(location.latitude, location.longitude), USER_ZOOM
                 )
             )
         }
     }
 
-    // Update spot markers whenever the list changes
+    // Sync spot markers whenever the list changes
     LaunchedEffect(spots) {
         mapRef.value?.getStyle { style ->
             val collection = spots.toFeatureCollection()
@@ -159,36 +157,71 @@ fun MapScreen(
         }
     }
 
-    AndroidView(
-        factory = {
-            mapView.apply {
-                onCreate(null)
-                getMapAsync { map ->
-                    mapRef.value = map
-                    map.setStyle(styleUrl) {
-                        // Default camera — overridden by LaunchedEffect if permission granted
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(FALLBACK_POSITION)
-                            .zoom(DEFAULT_ZOOM)
-                            .build()
+    // ── Compose tree ──────────────────────────────────────────────────────────
+    Box(modifier = Modifier.fillMaxSize()) {
 
-                        fun loadVisible() {
-                            val b = map.projection.visibleRegion.latLngBounds
-                            viewModel.loadSpotsForBbox(
-                                b.longitudeWest, b.latitudeSouth,
-                                b.longitudeEast, b.latitudeNorth,
-                            )
+        AndroidView(
+            factory = {
+                mapView.apply {
+                    onCreate(null)
+                    getMapAsync { map ->
+                        mapRef.value = map
+
+                        map.setStyle(styleUrl) {
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(FALLBACK_POSITION)
+                                .zoom(DEFAULT_ZOOM)
+                                .build()
+
+                            fun loadVisible() {
+                                val b = map.projection.visibleRegion.latLngBounds
+                                viewModel.loadSpotsForBbox(
+                                    b.longitudeWest, b.latitudeSouth,
+                                    b.longitudeEast, b.latitudeNorth,
+                                )
+                            }
+
+                            loadVisible()
+                            map.addOnCameraIdleListener { loadVisible() }
+                            mapReady = true
                         }
 
-                        loadVisible()
-                        map.addOnCameraIdleListener { loadVisible() }
-                        mapReady = true
+                        // Tap a circle → select spot; tap empty → dismiss sheet
+                        map.addOnMapClickListener { latLng ->
+                            val screen = map.projection.toScreenLocation(latLng)
+                            val rect = RectF(
+                                screen.x - TAP_BUFFER_PX,
+                                screen.y - TAP_BUFFER_PX,
+                                screen.x + TAP_BUFFER_PX,
+                                screen.y + TAP_BUFFER_PX,
+                            )
+                            val hits = map.queryRenderedFeatures(rect, SPOTS_LAYER)
+                            if (hits.isNotEmpty()) {
+                                hits[0].getStringProperty("id")?.let { viewModel.selectSpot(it) }
+                                true
+                            } else {
+                                viewModel.clearSelectedSpot()
+                                false
+                            }
+                        }
                     }
                 }
-            }
-        },
-        modifier = Modifier.fillMaxSize(),
-    )
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        // Bottom sheet — shown when a spot is selected
+        selectedSpot?.let { spot ->
+            SpotPreviewSheet(
+                spot = spot,
+                onDismiss = { viewModel.clearSelectedSpot() },
+                onViewDetails = { id ->
+                    viewModel.clearSelectedSpot()
+                    onNavigateToDetail(id)
+                },
+            )
+        }
+    }
 }
 
 @SuppressLint("MissingPermission")
@@ -198,16 +231,13 @@ private fun activateLocationDot(
     style: Style,
 ) {
     try {
-        val options = LocationComponentActivationOptions
-            .builder(context, style)
-            .build()
-        map.locationComponent.activateLocationComponent(options)
+        map.locationComponent.activateLocationComponent(
+            LocationComponentActivationOptions.builder(context, style).build()
+        )
         map.locationComponent.isLocationComponentEnabled = true
         map.locationComponent.cameraMode = CameraMode.NONE
         map.locationComponent.renderMode = RenderMode.COMPASS
-    } catch (_: Exception) {
-        // Permission may have been revoked between check and activation
-    }
+    } catch (_: Exception) {}
 }
 
 private fun List<SpotSummary>.toFeatureCollection(): FeatureCollection =

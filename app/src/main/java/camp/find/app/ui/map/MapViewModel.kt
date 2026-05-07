@@ -15,8 +15,8 @@ class MapViewModel : ViewModel() {
     private val _spots = MutableStateFlow<List<SpotSummary>>(emptyList())
     val spots: StateFlow<List<SpotSummary>> = _spots.asStateFlow()
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _selectedSpot = MutableStateFlow<SpotSummary?>(null)
+    val selectedSpot: StateFlow<SpotSummary?> = _selectedSpot.asStateFlow()
 
     fun loadSpotsForBbox(
         minLng: Double,
@@ -25,12 +25,16 @@ class MapViewModel : ViewModel() {
         maxLat: Double,
     ) {
         viewModelScope.launch {
-            try {
-                _spots.value = api.getSpotsByBbox(minLng, minLat, maxLng, maxLat).spots
-                _error.value = null
-            } catch (e: Exception) {
-                _error.value = e.message
-            }
+            runCatching { api.getSpotsByBbox(minLng, minLat, maxLng, maxLat) }
+                .onSuccess { _spots.value = it.spots }
         }
+    }
+
+    fun selectSpot(id: String) {
+        _selectedSpot.value = _spots.value.find { it.id == id }
+    }
+
+    fun clearSelectedSpot() {
+        _selectedSpot.value = null
     }
 }
