@@ -1,0 +1,1 @@
+-keep class camp.find.app.** { *; }
